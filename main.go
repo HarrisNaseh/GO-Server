@@ -5,6 +5,9 @@ import (
 
 	"database/sql"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"log"
 	"mime/multipart"
@@ -112,18 +115,22 @@ var videoFormats = map[string]string{
 }
 
 type Media struct {
-	ID            int
-	TYPE          string
+	ID            int    `json:"id"`
+	TYPE          string `json:"type"`
 	PATH          string
 	DATE          time.Time
-	MediaType     string
-	Size          int64
+	MediaType     string `json:"mediatype"`
+	Size          int64  `json:"size"`
 	thumbnailPath *string
+	WIDTH         int `json:"width"`
+	HEIGHT        int `json:"height"`
 }
 
 var db *sql.DB
 
 func main() {
+
+	// imageTest()
 
 	db = dbInit()
 
@@ -246,7 +253,13 @@ func addMetaDataToDB(contentType string, path string, httpType string, video boo
 
 		defer file.Close()
 
-		query := "INSERT INTO media (type, path, size, mediatype, thumbnailPath) VALUES (?,?,?,?,?)"
+		img, _, err := image.DecodeConfig(file)
+		if err != nil {
+			fmt.Printf("Failed to decode image %s: %v\n", path, err)
+			return nil
+		}
+
+		query := "INSERT INTO media (type, path, size, mediatype, thumbnailPath, width, height) VALUES (?,?,?,?,?,?,?)"
 
 		size, sizeerr := getFileSize(os.Getenv("MEDIAPATH") + path)
 
@@ -254,7 +267,7 @@ func addMetaDataToDB(contentType string, path string, httpType string, video boo
 			return sizeerr
 		}
 
-		if _, err := db.Exec(query, contentType, path, size, httpType, thumbnailPath); err != nil {
+		if _, err := db.Exec(query, contentType, path, size, httpType, thumbnailPath, img.Width, img.Height); err != nil {
 			return err
 		}
 
@@ -262,15 +275,29 @@ func addMetaDataToDB(contentType string, path string, httpType string, video boo
 
 	}
 
-	query := "INSERT INTO media (type, path, size, mediatype) VALUES (?,?,?,?)"
+	query := "INSERT INTO media (type, path, size, mediatype, width, height) VALUES (?,?,?,?,?,?)"
 
 	size, sizeerr := getFileSize(os.Getenv("MEDIAPATH") + path)
+
+	file, err := os.Open(os.Getenv("MEDIAPATH") + path)
+	if err != nil {
+		fmt.Printf("Failed to open file %s: %v\n", path, err)
+		return nil
+	}
+	defer file.Close()
+
+	// Decode the image to get its dimensions
+	img, _, err := image.DecodeConfig(file)
+	if err != nil {
+		fmt.Printf("Failed to decode image %s: %v\n", path, err)
+		return nil
+	}
 
 	if sizeerr != nil {
 		return sizeerr
 	}
 
-	if _, err := db.Exec(query, contentType, path, size, httpType); err != nil {
+	if _, err := db.Exec(query, contentType, path, size, httpType, img.Width, img.Height); err != nil {
 		return err
 	}
 
@@ -515,7 +542,7 @@ func getAll(c *gin.Context) {
 	for rows.Next() {
 		var media Media
 
-		if err := rows.Scan(&media.ID, &media.TYPE, &media.PATH, &media.DATE, &media.Size, &media.MediaType, &media.thumbnailPath); err != nil {
+		if err := rows.Scan(&media.ID, &media.TYPE, &media.PATH, &media.DATE, &media.Size, &media.MediaType, &media.thumbnailPath, &media.WIDTH, &media.HEIGHT); err != nil {
 			c.String(http.StatusInternalServerError, fmt.Sprintf("%s", err))
 		}
 
