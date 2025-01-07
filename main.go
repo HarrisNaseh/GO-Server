@@ -490,19 +490,14 @@ func getVideoById(c *gin.Context, media Media) {
 
 	defer file.Close()
 
-	fileStat, err := file.Stat()
-
-	if err != nil {
-		c.String(http.StatusInternalServerError, "Could Not Stat File.")
-		return
-	}
+	fileSize := media.Size
 
 	rangeHeader := c.GetHeader("Range")
 
 	if rangeHeader == "" {
 		c.Header("Content-Type", media.MediaType)
 		c.Header("Accept-Ranges", "bytes")
-		c.Header("Content-Length", fmt.Sprint(fileStat.Size()))
+		c.Header("Content-Length", fmt.Sprint(fileSize))
 		io.Copy(c.Writer, file)
 	}
 
@@ -518,13 +513,13 @@ func getVideoById(c *gin.Context, media Media) {
 			if err != nil {
 				c.String(http.StatusInternalServerError, "Could not resolve range")
 			}
-			start = fileStat.Size() - 1 - diff
+			start = fileSize - 1 - diff
 		}
-		end = fileStat.Size() - 1
+		end = fileSize - 1
 
 	}
 
-	if end >= fileStat.Size() || start > end || start < 0 || end < 0 {
+	if end >= fileSize || start > end || start < 0 || end < 0 {
 
 		c.Status(http.StatusRequestedRangeNotSatisfiable)
 
@@ -533,7 +528,7 @@ func getVideoById(c *gin.Context, media Media) {
 		c.Header("Content-Type", media.MediaType)
 		c.Header("Accept-Ranges", "bytes")
 		c.Header("Content-Length", fmt.Sprintf("%d", end-start+1))
-		c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileStat.Size()))
+		c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileSize))
 
 		file.Seek(start, io.SeekStart)
 		io.CopyN(c.Writer, file, end-start+1)
@@ -543,11 +538,11 @@ func getVideoById(c *gin.Context, media Media) {
 
 func getMediaById(c *gin.Context) {
 	id := c.Param("id")
-	row := db.QueryRow("SELECT * FROM media WHERE id=?", id)
+	row := db.QueryRow("SELECT id, type, path, size, mediatype, thumbnailPath FROM media WHERE id=?", id)
 
 	var media Media
 
-	if err := row.Scan(&media.ID, &media.TYPE, &media.PATH, &media.DATE, &media.Size, &media.MediaType, &media.thumbnailPath); err != nil {
+	if err := row.Scan(&media.ID, &media.TYPE, &media.PATH, &media.Size, &media.MediaType, &media.thumbnailPath); err != nil {
 		if err == sql.ErrNoRows {
 			c.String(http.StatusNotFound, fmt.Sprintf("No media exists with id: %s", id))
 			return
@@ -575,14 +570,7 @@ func getImageById(c *gin.Context, media Media) {
 
 	defer file.Close()
 
-	fileStat, err := file.Stat()
-
-	if err != nil {
-		c.String(http.StatusInternalServerError, "Could Not Stat File.")
-		return
-	}
-
-	c.Header("Content-Length", fmt.Sprintf("%d", fileStat.Size()))
+	c.Header("Content-Length", fmt.Sprintf("%d", media.Size))
 	c.Header("Content-Type", media.MediaType)
 
 	io.Copy(c.Writer, file)
