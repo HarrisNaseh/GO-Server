@@ -3,7 +3,9 @@ package main
 import (
 	// "net/http"
 
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -15,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -126,7 +129,42 @@ type Media struct {
 	HEIGHT        int `json:"height"`
 }
 
+type FFProbeOutput struct {
+	Format struct {
+		Duration string `json:"duration"`
+		Size     string `json:"size"`
+	} `json:"format"`
+}
+
 var db *sql.DB
+
+// Store this inside another table. Probably two tables and then combine
+func getVideoDuration(videoPath string) (int, error) {
+	// ffprobe command
+	cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", videoPath)
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	// Run the command
+	if err := cmd.Run(); err != nil {
+		return -1, fmt.Errorf("failed to run ffprobe: %w", err)
+	}
+
+	// Parse JSON output
+	var result FFProbeOutput
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		return -1, fmt.Errorf("failed to parse ffprobe output: %w", err)
+	}
+
+	durFloat, err := strconv.ParseFloat(result.Format.Duration, 64)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return int(durFloat), nil
+}
 
 func main() {
 
@@ -256,18 +294,40 @@ func addMetaDataToDB(contentType string, path string, httpType string, video boo
 		img, _, err := image.DecodeConfig(file)
 		if err != nil {
 			fmt.Printf("Failed to decode image %s: %v\n", path, err)
-			return nil
+			return err
 		}
 
 		query := "INSERT INTO media (type, path, size, mediatype, thumbnailPath, width, height) VALUES (?,?,?,?,?,?,?)"
 
-		size, sizeerr := getFileSize(os.Getenv("MEDIAPATH") + path)
+		size, err := getFileSize(os.Getenv("MEDIAPATH") + path)
 
-		if sizeerr != nil {
-			return sizeerr
+		if err != nil {
+			fmt.Printf("Failed to get size")
+			return err
 		}
 
-		if _, err := db.Exec(query, contentType, path, size, httpType, thumbnailPath, img.Width, img.Height); err != nil {
+		result, err := db.Exec(query, contentType, path, size, httpType, thumbnailPath, img.Width, img.Height)
+
+		if err != nil {
+			return err
+		}
+
+		duration, err := getVideoDuration(os.Getenv("MEDIAPATH") + path)
+		if err != nil {
+			return err
+		}
+
+		vidId, err := result.LastInsertId()
+
+		if err != nil {
+			return err
+		}
+
+		insertDurationString := `INSERT INTO videoDuration(videoId, duration) VALUES (?,?)`
+
+		_, insertErr := db.Exec(insertDurationString, vidId, duration)
+
+		if insertErr != nil {
 			return err
 		}
 
@@ -593,18 +653,30 @@ func dbInit() *sql.DB {
 	}
 
 	createString := `CREATE TABLE IF NOT EXISTS media(
-	id INTEGER PRIMARY KEY NOT NULL,
-	type TEXT NOT NULL,
-	path TEXT NOT NULL UNIQUE,
-	timestamp DATE DEFAULT CURRENT_TIMESTAMP,
-	size INTEGER NOT NULL,
-	mediatype TEXT NOT NULL
-	)`
+        id INTEGER PRIMARY KEY NOT NULL,
+        type TEXT NOT NULL,
+        path TEXT NOT NULL UNIQUE,
+        timestamp DATE DEFAULT CURRENT_TIMESTAMP,
+        size INTEGER NOT NULL,
+        mediatype TEXT NOT NULL, 
+		thumbnailPath TEXT, 
+		width INTEGER, 
+		height INTEGER); 
+		CREATE TABLE IF NOT EXISTS videoDuration( videoId INTEGER NOT NULL,
+		duration INTEGER NOT NULL,
+		FOREIGN KEY (videoId) REFERENCES media(id) ON DELETE CASCADE);`
 
 	_, createErr := db.Exec(createString)
 
 	if createErr != nil {
 		log.Fatalf("Can not create table because %s", createErr)
+	}
+
+	PRAGMA_foreign_keys_String := "PRAGMA foreign_keys=ON"
+	_, PRAGMAErr := db.Exec(PRAGMA_foreign_keys_String)
+
+	if PRAGMAErr != nil {
+		log.Fatalf("Can not turn on Foreign key support in database")
 	}
 
 	return db
