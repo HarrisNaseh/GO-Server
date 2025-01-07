@@ -125,8 +125,9 @@ type Media struct {
 	MediaType     string `json:"mediatype"`
 	Size          int64  `json:"size"`
 	thumbnailPath *string
-	WIDTH         int `json:"width"`
-	HEIGHT        int `json:"height"`
+	WIDTH         int  `json:"width"`
+	HEIGHT        int  `json:"height"`
+	DURATION      *int `json:"duration"`
 }
 
 type FFProbeOutput struct {
@@ -588,7 +589,7 @@ func getImageById(c *gin.Context, media Media) {
 }
 
 func getAll(c *gin.Context) {
-	rows, err := db.Query("SELECT * FROM media")
+	rows, err := db.Query("SELECT id, type, width, height, duration FROM media left JOIN videoduration ON media.id=videoduration.videoid")
 
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Could not get all rows from database")
@@ -597,23 +598,29 @@ func getAll(c *gin.Context) {
 
 	defer rows.Close()
 
-	var items []Media
+	var items []gin.H
 
 	for rows.Next() {
 		var media Media
 
-		if err := rows.Scan(&media.ID, &media.TYPE, &media.PATH, &media.DATE, &media.Size, &media.MediaType, &media.thumbnailPath, &media.WIDTH, &media.HEIGHT); err != nil {
+		if err := rows.Scan(&media.ID, &media.TYPE, &media.WIDTH, &media.HEIGHT, &media.DURATION); err != nil {
 			c.String(http.StatusInternalServerError, fmt.Sprintf("%s", err))
 		}
 
-		items = append(items, media)
+		items = append(items, gin.H{
+			"id":       media.ID,
+			"type":     media.TYPE,
+			"width":    media.WIDTH,
+			"height":   media.HEIGHT,
+			"duration": media.DURATION,
+		})
 	}
 
 	if err := rows.Err(); err != nil {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("%s", err))
 	}
 
-	c.IndentedJSON(http.StatusOK, items)
+	c.JSON(http.StatusOK, items)
 }
 
 func deleteById(c *gin.Context) {
