@@ -441,11 +441,11 @@ func corsMiddleware() gin.HandlerFunc {
 func getThumbnailById(c *gin.Context) {
 
 	id := c.Param("id")
-	row := db.QueryRow("SELECT type, thumbnailPath, path FROM media WHERE id=?", id)
+	row := db.QueryRow("SELECT type, thumbnailPath, path, size FROM media WHERE id=?", id)
 
 	var media Media
 
-	if err := row.Scan(&media.TYPE, &media.thumbnailPath, &media.PATH); err != nil {
+	if err := row.Scan(&media.TYPE, &media.thumbnailPath, &media.PATH, &media.Size); err != nil {
 		if err == sql.ErrNoRows {
 			c.String(http.StatusNotFound, fmt.Sprintf("No media exists with id: %s", id))
 			return
