@@ -1,8 +1,6 @@
 package main
 
 import (
-	// "net/http"
-
 	"database/sql"
 	"fmt"
 	_ "image/jpeg"
@@ -38,11 +36,13 @@ func main() {
 
 	//post request
 	go router.POST("/upload", uploadFiles)
-
+	// go router.POST("/register", register)
+	go router.POST("/login", login)
+	go router.POST("/logout", logout)
 	//detele route
 	go router.DELETE("/media/:id", deleteById)
-	// router.Run() //Run this when you want this to run on the network
-	router.Run(":8080")
+	router.Run() //Run this when you want this to run on the network
+	// router.Run(":8080")
 }
 
 func uploadFiles(c *gin.Context) {
@@ -328,3 +328,94 @@ func deleteById(c *gin.Context) {
 	db.Exec("DELETE FROM media WHERE id=?", id)
 
 }
+
+//auth stuff
+
+func login(c *gin.Context) {
+	username := c.Request.FormValue("username")
+	plainPassword := c.Request.FormValue("password")
+
+	row := db.QueryRow("SELECT * FROM users WHERE username=?", username)
+
+	var user User
+	err := row.Scan(&user.username, &user.password)
+
+	if err != nil || !checkPassword(plainPassword, user.password) {
+		c.String(http.StatusUnauthorized, "Wrong Username or password")
+		return
+	}
+
+	sessionToken := generateToken(32)
+	csrfToken := generateToken(32)
+
+	maxAge := 1 * 24 * 60 * 60
+	_, dbErr := db.Exec("INSERT INTO session (token, csrfToken, user) VALUES (?,?,?)", sessionToken, csrfToken, username)
+
+	if dbErr != nil {
+		c.String(http.StatusInternalServerError, "Problem With auth")
+		fmt.Printf("%v", err)
+		return
+	}
+	//set sucure argument to true when using https
+	c.SetCookie("session_token", sessionToken, maxAge, "/", "", false, true)
+	c.SetCookie("csrf_token", csrfToken, maxAge, "/", "", false, false)
+	fmt.Println("Worked")
+
+}
+
+func logout(c *gin.Context) {
+	//autherize the request
+
+	if err := Autherize(c); err != nil {
+		c.String(http.StatusUnauthorized, "Unatherized access to this route. Sign in")
+		return
+	}
+	cookie, _ := c.Request.Cookie("session_token")
+	sessionToken := cookie.Value
+
+	_, dbErr := db.Exec("DELECT FROM session WHERE token=?", sessionToken)
+
+	if dbErr != nil {
+		c.String(http.StatusInternalServerError, "Could not sign out")
+	}
+
+	c.SetCookie("session_token", "", 0, "", "", false, true)
+	c.SetCookie("csrf_token", "", 0, "/", "", false, false)
+}
+
+// func register(c *gin.Context) {
+// 	username := c.Request.FormValue("username")
+// 	plainPassword := c.Request.FormValue("password")
+
+// 	if len(plainPassword) < 6 {
+// 		c.String(http.StatusNotAcceptable, "Password too short")
+// 		return
+// 	}
+
+// 	row := db.QueryRow("SELECT username FROM users WHERE username=?", username)
+
+// 	var user User
+// 	err := row.Scan(&user.username)
+
+// 	if err == nil {
+// 		c.String(http.StatusConflict, "User Already exisits")
+// 		return
+// 	}
+
+// 	hashedPassword, err := hashPassword(plainPassword)
+
+// 	if err != nil {
+// 		c.String(http.StatusInternalServerError, fmt.Sprintf("%s", err))
+// 		return
+// 	}
+
+// 	createUserQuery := "INSERT INTO users (username, password) VALUES (?,?)"
+
+// 	_, createErr := db.Exec(createUserQuery, username, hashedPassword)
+
+// 	if createErr != nil {
+// 		c.String(http.StatusInternalServerError, fmt.Sprintf("%s", err))
+// 		return
+// 	}
+
+// }

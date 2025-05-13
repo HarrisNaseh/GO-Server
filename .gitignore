@@ -1,3 +1,5 @@
 __debug_bin*
 metadata.db
 /bin/*
+go.mod
+go.sum

@@ -79,7 +79,7 @@ var videoFormats = map[string]string{
 	".m4v":   "video/x-m4v",
 	".mj2":   "video/mj2",
 	".mjp2":  "video/mj2",
-	".mov":   "video/quicktime",
+	".mov":   "video/mp4",
 	".movie": "video/x-sgi-movie",
 	".mp4":   "video/mp4",
 	".mp4v":  "video/mp4",
@@ -115,6 +115,16 @@ type FFProbeOutput struct {
 		Duration string `json:"duration"`
 		Size     string `json:"size"`
 	} `json:"format"`
+}
+
+type User struct {
+	username string
+	password string
+}
+
+type Session struct {
+	session string
+	csrf    string
 }
 
 var db *sql.DB
