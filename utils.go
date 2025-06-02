@@ -152,3 +152,14 @@ func getFileSize(filePath string) (int64, error) {
 	return fileStat.Size(), nil
 
 }
+
+// func decodeCookie(cookieValue string, revalue *string)(bool) {
+// 	token, err := url.QueryUnescape(cookieValue)
+// 	if err != nil {
+// 		return false
+// 	}
+
+// 	*revalue = token
+// 	return true
+
+// }

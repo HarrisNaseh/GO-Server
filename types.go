@@ -118,13 +118,17 @@ type FFProbeOutput struct {
 }
 
 type User struct {
+	id       int
 	username string
 	password string
 }
 
 type Session struct {
-	session string
-	csrf    string
+	session   string
+	csrf      string
+	user      int
+	createdAt time.Time
 }
 
+// Global variable for database connection
 var db *sql.DB

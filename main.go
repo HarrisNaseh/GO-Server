@@ -29,18 +29,24 @@ func main() {
 	router.MaxMultipartMemory = 8 << 20
 
 	router.Use(corsMiddleware())
-	// go router.GET("/video", getVideo)
-	go router.GET("/media/:id", getMediaById)
-	go router.GET("/", getAll)
-	go router.GET("/media/:id/thumbnail", getThumbnailById)
 
-	//post request
-	go router.POST("/upload", uploadFiles)
-	// go router.POST("/register", register)
 	go router.POST("/login", login)
 	go router.POST("/logout", logout)
+
+	authGroup := router.Group("")
+	authGroup.Use(AuthMiddleware(db))
+
+	// go router.GET("/video", getVideo)
+	go authGroup.GET("/media/:id", getMediaById)
+	go authGroup.GET("/", getAll)
+	go authGroup.GET("/media/:id/thumbnail", getThumbnailById)
+
+	//post request
+	go authGroup.POST("/upload", uploadFiles)
+	// go router.POST("/register", register)
+
 	//detele route
-	go router.DELETE("/media/:id", deleteById)
+	go authGroup.DELETE("/media/:id", deleteById)
 	router.Run() //Run this when you want this to run on the network
 	// router.Run(":8080")
 }
@@ -331,57 +337,58 @@ func deleteById(c *gin.Context) {
 
 //auth stuff
 
-func login(c *gin.Context) {
-	username := c.Request.FormValue("username")
-	plainPassword := c.Request.FormValue("password")
+// func login(c *gin.Context) {
+// 	username := c.Request.FormValue("username")
+// 	plainPassword := c.Request.FormValue("password")
 
-	row := db.QueryRow("SELECT * FROM users WHERE username=?", username)
+// 	row := db.QueryRow("SELECT * FROM users WHERE username=?", username)
 
-	var user User
-	err := row.Scan(&user.username, &user.password)
+// 	var user User
+// 	err := row.Scan(&user.id, &user.username, &user.password)
 
-	if err != nil || !checkPassword(plainPassword, user.password) {
-		c.String(http.StatusUnauthorized, "Wrong Username or password")
-		return
-	}
+// 	if err != nil || !checkPassword(plainPassword, user.password) {
+// 		c.String(http.StatusUnauthorized, "Wrong Username or password")
+// 		return
+// 	}
 
-	sessionToken := generateToken(32)
-	csrfToken := generateToken(32)
+// 	sessionToken := generateToken(32)
+// 	csrfToken := generateToken(32)
 
-	maxAge := 1 * 24 * 60 * 60
-	_, dbErr := db.Exec("INSERT INTO session (token, csrfToken, user) VALUES (?,?,?)", sessionToken, csrfToken, username)
+// 	maxAge := 1 * 48 * 60 * 60
+// 	var currTime = time.Now()
+// 	_, dbErr := db.Exec("INSERT INTO session (token, csrfToken, userId, createdAt) VALUES (?,?,?)", sessionToken, csrfToken, user.id, currTime)
 
-	if dbErr != nil {
-		c.String(http.StatusInternalServerError, "Problem With auth")
-		fmt.Printf("%v", err)
-		return
-	}
-	//set sucure argument to true when using https
-	c.SetCookie("session_token", sessionToken, maxAge, "/", "", false, true)
-	c.SetCookie("csrf_token", csrfToken, maxAge, "/", "", false, false)
-	fmt.Println("Worked")
+// 	if dbErr != nil {
+// 		c.String(http.StatusInternalServerError, "Problem With auth")
+// 		fmt.Printf("%v", err)
+// 		return
+// 	}
+// 	//set sucure argument to true when using https
+// 	c.SetCookie("session_token", sessionToken, maxAge, "/", "", false, true)
+// 	c.SetCookie("csrf_token", csrfToken, maxAge, "/", "", false, false)
+// 	fmt.Println("Worked")
 
-}
+// }
 
-func logout(c *gin.Context) {
-	//autherize the request
+// func logout(c *gin.Context) {
+// 	//autherize the request
 
-	if err := Autherize(c); err != nil {
-		c.String(http.StatusUnauthorized, "Unatherized access to this route. Sign in")
-		return
-	}
-	cookie, _ := c.Request.Cookie("session_token")
-	sessionToken := cookie.Value
+// 	if err := Autherize(c); err != nil {
+// 		c.String(http.StatusUnauthorized, "Unatherized access to this route. Sign in")
+// 		return
+// 	}
+// 	cookie, _ := c.Request.Cookie("session_token")
+// 	sessionToken := cookie.Value
 
-	_, dbErr := db.Exec("DELECT FROM session WHERE token=?", sessionToken)
+// 	_, dbErr := db.Exec("DELECT FROM session WHERE token=?", sessionToken)
 
-	if dbErr != nil {
-		c.String(http.StatusInternalServerError, "Could not sign out")
-	}
+// 	if dbErr != nil {
+// 		c.String(http.StatusInternalServerError, "Could not sign out")
+// 	}
 
-	c.SetCookie("session_token", "", 0, "", "", false, true)
-	c.SetCookie("csrf_token", "", 0, "/", "", false, false)
-}
+// 	c.SetCookie("session_token", "", 0, "", "", false, true)
+// 	c.SetCookie("csrf_token", "", 0, "/", "", false, false)
+// }
 
 // func register(c *gin.Context) {
 // 	username := c.Request.FormValue("username")

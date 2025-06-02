@@ -1,7 +1,11 @@
 package main
 
 import (
+	"database/sql"
+	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -47,6 +51,61 @@ func corsMiddleware() gin.HandlerFunc {
 		}
 
 		// Call the next handler
+		c.Next()
+	}
+}
+
+func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		sessionCookie, cError := c.Request.Cookie("session_token")
+
+		if cError != nil || sessionCookie.Value == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
+		decodedToken, err := url.QueryUnescape(sessionCookie.Value)
+		if err != nil {
+			c.String(http.StatusBadRequest, "Invalid session token")
+			return
+		}
+
+		var dbToken, dbCsrfToken, username string
+		var createdAt time.Time
+		row := db.QueryRow("SELECT token, csrfToken, userId, createdAt FROM session WHERE token=?", decodedToken)
+		err = row.Scan(&dbToken, &dbCsrfToken, &username, &createdAt)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			} else {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+			}
+			return
+		}
+
+		if time.Since(createdAt) > 48*time.Hour {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Session expired"})
+			return
+		}
+
+		csrfTokenCookie, err := c.Request.Cookie("csrf_token")
+
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "CSRF token missing"})
+			return
+		}
+
+		decodedCsrfToken, err := url.QueryUnescape(csrfTokenCookie.Value)
+		if err != nil {
+			c.String(http.StatusBadRequest, "Invalid csrf token")
+			return
+		}
+
+		if dbCsrfToken != decodedCsrfToken {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid CSRF token"})
+			return
+		}
+
 		c.Next()
 	}
 }

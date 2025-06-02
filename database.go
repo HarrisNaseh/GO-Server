@@ -26,7 +26,19 @@ func dbInit() *sql.DB {
 		height INTEGER); 
 		CREATE TABLE IF NOT EXISTS videoDuration( videoId INTEGER NOT NULL,
 		duration INTEGER NOT NULL,
-		FOREIGN KEY (videoId) REFERENCES media(id) ON DELETE CASCADE);`
+		FOREIGN KEY (videoId) REFERENCES media(id) ON DELETE CASCADE);
+		
+		CREATE TABLE IF NOT EXISTS session(
+		token TEXT PRIMARY KEY NOT NULL,
+		csrfToken TEXT NOT NULL,
+		userId INTEGER NOT NULL,
+		createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (userId) REFERENCES user(id) ON DELETE CASCADE);
+
+		CREATE TABLE IF NOT EXISTS user(
+		id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+		username TEXT NOT NULL UNIQUE,
+		password TEXT NOT NULL);`
 
 	_, createErr := db.Exec(createString)
 
