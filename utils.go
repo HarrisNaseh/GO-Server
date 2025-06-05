@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 func getVideoDuration(videoPath string) (int, error) {
@@ -153,13 +156,18 @@ func getFileSize(filePath string) (int64, error) {
 
 }
 
-// func decodeCookie(cookieValue string, revalue *string)(bool) {
-// 	token, err := url.QueryUnescape(cookieValue)
-// 	if err != nil {
-// 		return false
-// 	}
+func decodeCookie(c *gin.Context, cookieName string) (string, error) {
 
-// 	*revalue = token
-// 	return true
+	cookie, err := c.Request.Cookie(cookieName)
+	if err != nil {
+		return "", fmt.Errorf("cookie not found: %w", err)
+	}
 
-// }
+	decodedValue, err := url.QueryUnescape(cookie.Value)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode cookie value: %w", err)
+	}
+
+	return decodedValue, nil
+
+}

@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -58,13 +57,14 @@ func corsMiddleware() gin.HandlerFunc {
 func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 
-		sessionCookie, cError := c.Request.Cookie("session_token")
+		// sessionCookie, cError := c.Request.Cookie("session_token")
 
-		if cError != nil || sessionCookie.Value == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			return
-		}
-		decodedToken, err := url.QueryUnescape(sessionCookie.Value)
+		// if cError != nil || sessionCookie.Value == "" {
+		// 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		// 	return
+		// }
+
+		decodedToken, err := decodeCookie(c, "session_token")
 		if err != nil {
 			c.String(http.StatusBadRequest, "Invalid session token")
 			return
@@ -88,22 +88,24 @@ func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		csrfTokenCookie, err := c.Request.Cookie("csrf_token")
+		// csrfTokenCookie, err := c.Request.Cookie("csrf_token")
 
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "CSRF token missing"})
-			return
-		}
+		// if err != nil {
+		// 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "CSRF token missing"})
+		// 	return
+		// }
 
-		decodedCsrfToken, err := url.QueryUnescape(csrfTokenCookie.Value)
-		if err != nil {
-			c.String(http.StatusBadRequest, "Invalid csrf token")
-			return
-		}
+		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "DELETE" {
+			decodedCsrfToken, err := decodeCookie(c, "csrf_token")
+			if err != nil {
+				c.String(http.StatusBadRequest, "Invalid csrf token")
+				return
+			}
 
-		if dbCsrfToken != decodedCsrfToken {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid CSRF token"})
-			return
+			if dbCsrfToken != decodedCsrfToken {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid CSRF token"})
+				return
+			}
 		}
 
 		c.Next()

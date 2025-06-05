@@ -61,10 +61,10 @@ func login(c *gin.Context) {
 		fmt.Printf("%v", err)
 		return
 	}
+
 	//set sucure argument to true when using https
 	c.SetCookie("session_token", sessionToken, maxAge, "/", "", false, true)
 	c.SetCookie("csrf_token", csrfToken, maxAge, "/", "", false, false)
-	fmt.Println("Worked")
 
 }
 
@@ -105,31 +105,3 @@ func logout(c *gin.Context) {
 	c.String(http.StatusOK, "Signed out successfully")
 	fmt.Println("Signed out successfully")
 }
-
-// func Autherize(c *gin.Context) error {
-// 	//Need to look at the session token then look at the csrf token and finally autherize user
-
-// 	cookie, cError := c.Request.Cookie("session_token")
-
-// 	if cError != nil || cookie.Value == "" {
-// 		return errors.New("Unauthorized")
-// 	}
-
-// 	row := db.QueryRow("SELECT token, csrfToken FROM session WHERE token=?", cookie.Value)
-
-// 	var session Session
-
-// 	err := row.Scan(&session.session, &session.csrf)
-
-// 	if err != nil || session.session != cookie.Value {
-// 		return errors.New("Unauthorized")
-// 	}
-
-// 	csrf := c.Request.Header.Get("X-CSRF-Token")
-
-// 	if csrf == "" || csrf != session.csrf {
-// 		return errors.New("Unauthorized")
-// 	}
-
-// 	return nil
-// }
