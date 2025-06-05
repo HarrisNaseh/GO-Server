@@ -36,15 +36,22 @@ func generateToken(length int) string {
 }
 
 func login(c *gin.Context) {
-	username := c.Request.FormValue("username")
-	plainPassword := c.Request.FormValue("password")
 
-	row := db.QueryRow("SELECT * FROM user WHERE username=?", username)
+	var loginData LoginRequest
+	if err := c.ShouldBindJSON(&loginData); err != nil {
+		c.String(http.StatusBadRequest, "Invalid login data")
+		return
+	}
+
+	// username := c.Request.FormValue("username")
+	// plainPassword := c.Request.FormValue("password")
+
+	row := db.QueryRow("SELECT * FROM user WHERE username=?", loginData.Username)
 
 	var user User
 	err := row.Scan(&user.id, &user.username, &user.password)
 
-	if err != nil || !checkPassword(plainPassword, user.password) {
+	if err != nil || !checkPassword(loginData.Password, user.password) {
 		c.String(http.StatusUnauthorized, "Wrong Username or password")
 		return
 	}

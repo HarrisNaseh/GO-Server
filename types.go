@@ -126,8 +126,13 @@ type User struct {
 type Session struct {
 	session   string
 	csrf      string
-	user      int
+	user      int32
 	createdAt time.Time
+}
+
+type LoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 // Global variable for database connection

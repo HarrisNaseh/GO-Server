@@ -66,14 +66,15 @@ func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 
 		decodedToken, err := decodeCookie(c, "session_token")
 		if err != nil {
-			c.String(http.StatusBadRequest, "Invalid session token")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			// c.String(http.StatusBadRequest, "Invalid session token")
 			return
 		}
 
-		var dbToken, dbCsrfToken, username string
+		var session Session
 		var createdAt time.Time
 		row := db.QueryRow("SELECT token, csrfToken, userId, createdAt FROM session WHERE token=?", decodedToken)
-		err = row.Scan(&dbToken, &dbCsrfToken, &username, &createdAt)
+		err = row.Scan(&session.session, &session.csrf, &session.user, &session.createdAt)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
@@ -102,7 +103,7 @@ func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 				return
 			}
 
-			if dbCsrfToken != decodedCsrfToken {
+			if session.csrf != decodedCsrfToken {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid CSRF token"})
 				return
 			}
