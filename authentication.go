@@ -117,8 +117,8 @@ func checkAuthStatus(c *gin.Context) {
 	}
 
 	var session Session
-	row := db.QueryRow("SELECT token, username, createdAt FROM session WHERE token=?", token)
-	err = row.Scan(&session.session, &session.user, &session.createdAt)
+	row := db.QueryRow("SELECT token, csrfToken, username, createdAt FROM session WHERE token=?", token)
+	err = row.Scan(&session.session, &session.csrf, &session.user, &session.createdAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -135,7 +135,8 @@ func checkAuthStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"authenticated": true,
-		"user": gin.H{"username": session.user},
+		"user":       gin.H{"username": session.user},
+		"csrf_token": session.csrf,
 	})
 
 }
