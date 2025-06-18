@@ -22,6 +22,7 @@ func main() {
 
 	router.POST("/login", login)
 	router.POST("/logout", logout)
+	router.GET("/check-auth", checkAuthStatus)
 
 	authGroup := router.Group("")
 	authGroup.Use(AuthMiddleware(db))

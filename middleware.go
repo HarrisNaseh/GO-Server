@@ -57,13 +57,6 @@ func corsMiddleware() gin.HandlerFunc {
 func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 
-		// sessionCookie, cError := c.Request.Cookie("session_token")
-
-		// if cError != nil || sessionCookie.Value == "" {
-		// 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		// 	return
-		// }
-
 		decodedToken, err := decodeCookie(c, "session_token")
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
@@ -72,8 +65,8 @@ func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 		}
 
 		var session Session
-		var createdAt time.Time
-		row := db.QueryRow("SELECT token, csrfToken, userId, createdAt FROM session WHERE token=?", decodedToken)
+		// var createdAt time.Time
+		row := db.QueryRow("SELECT * FROM session WHERE token=?", decodedToken)
 		err = row.Scan(&session.session, &session.csrf, &session.user, &session.createdAt)
 		if err != nil {
 			if err == sql.ErrNoRows {
@@ -84,29 +77,25 @@ func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		if time.Since(createdAt) > 48*time.Hour {
+		if time.Since(session.createdAt) > 48*time.Hour {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Session expired"})
 			return
 		}
 
-		// csrfTokenCookie, err := c.Request.Cookie("csrf_token")
-
-		// if err != nil {
-		// 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "CSRF token missing"})
-		// 	return
-		// }
-
 		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "DELETE" {
-			decodedCsrfToken, err := decodeCookie(c, "csrf_token")
-			if err != nil {
-				c.String(http.StatusBadRequest, "Invalid csrf token")
+			csrfHeader := c.Request.Header.Get("X-CSRF-Token")
+			// decodedCsrfToken, err := decodeCookie(c, "csrf_token")
+
+			if csrfHeader == "" || csrfHeader != session.csrf {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid CSRF token"})
+				// c.String(http.StatusBadRequest, "Invalid csrf token")
 				return
 			}
 
-			if session.csrf != decodedCsrfToken {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid CSRF token"})
-				return
-			}
+			// if session.csrf != decodedCsrfToken {
+			// 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid CSRF token"})
+			// 	return
+			// }
 		}
 
 		c.Next()

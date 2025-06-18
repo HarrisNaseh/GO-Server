@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"log"
@@ -61,7 +62,7 @@ func login(c *gin.Context) {
 
 	maxAge := 1 * 48 * 60 * 60
 	var currTime = time.Now()
-	_, dbErr := db.Exec("INSERT INTO session (token, csrfToken, userId, createdAt) VALUES (?,?,?,?)", sessionToken, csrfToken, user.id, currTime)
+	_, dbErr := db.Exec("INSERT INTO session (token, csrfToken, username, createdAt) VALUES (?,?,?,?)", sessionToken, csrfToken, user.username, currTime)
 
 	if dbErr != nil {
 		c.String(http.StatusInternalServerError, "Problem With auth")
@@ -71,26 +72,14 @@ func login(c *gin.Context) {
 
 	//set sucure argument to true when using https
 	c.SetCookie("session_token", sessionToken, maxAge, "/", "", false, true)
-	c.SetCookie("csrf_token", csrfToken, maxAge, "/", "", false, false)
+	// c.SetCookie("CSRF-Token", csrfToken, 1, "/", "", false, false)
+	c.JSON(http.StatusOK, gin.H{
+		"user":       gin.H{"username": user.username},
+		"csrf_token": csrfToken})
 
 }
 
 func logout(c *gin.Context) {
-	//autherize the request
-
-	// if err := Autherize(c); err != nil {
-	// 	c.String(http.StatusUnauthorized, "Unatherized access to this route. Sign in")
-	// 	return
-	// }
-	// cookie, _ := c.Request.Cookie("session_token")
-	// sessionToken := cookie.Value
-
-	// _, dbErr := db.Exec("DELECT FROM session WHERE token=?", sessionToken)
-
-	// if dbErr != nil {
-	// 	c.String(http.StatusInternalServerError, "Could not sign out")
-	// }
-
 	//delete session from database
 	tokenCookie, _ := c.Request.Cookie("session_token")
 
@@ -107,8 +96,46 @@ func logout(c *gin.Context) {
 	}
 
 	c.SetCookie("session_token", "", 0, "", "", false, true)
-	c.SetCookie("csrf_token", "", 0, "/", "", false, false)
+	// c.SetCookie("csrf_token", "", 0, "/", "", false, false)
 
 	c.String(http.StatusOK, "Signed out successfully")
 	fmt.Println("Signed out successfully")
+}
+
+func checkAuthStatus(c *gin.Context) {
+	tokenCookie, _ := c.Request.Cookie("session_token")
+
+	if tokenCookie == nil {
+		c.JSON(http.StatusOK, gin.H{"authenticated": false, "error": "Not authenticated"})
+		return
+	}
+
+	token, err := url.QueryUnescape(tokenCookie.Value)
+	if err != nil {
+		c.String(http.StatusBadRequest, "Invalid session token")
+		return
+	}
+
+	var session Session
+	row := db.QueryRow("SELECT token, username, createdAt FROM session WHERE token=?", token)
+	err = row.Scan(&session.session, &session.user, &session.createdAt)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusOK, gin.H{"authenticated": false, "error": "No session"})
+			return
+		}
+		c.String(http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	if time.Since(session.createdAt) > 48*time.Hour {
+		c.JSON(http.StatusOK, gin.H{"authenticated": false, "error": "Session expired"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"authenticated": true,
+		"user": gin.H{"username": session.user},
+	})
+
 }

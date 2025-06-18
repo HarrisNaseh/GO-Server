@@ -126,7 +126,7 @@ type User struct {
 type Session struct {
 	session   string
 	csrf      string
-	user      int32
+	user      string
 	createdAt time.Time
 }
 
